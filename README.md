@@ -50,3 +50,13 @@ Set current score of a user to a specific value. Any open orders will stay open.
 Remove an open order of a user
 
 ```.remove-order @user```
+
+### Reset 2x
+Each user can 2x once. To allow a user to 2x again:
+
+```.reset-2x @user```
+
+### Reset
+Reset the simulation. After reset, start a new session using .start <Price>
+
+```.reset```
