@@ -4,6 +4,8 @@ using System.Threading.Tasks;
 using Discord;
 using Discord.Commands;
 using Discord.WebSocket;
+using TradeSim;
+using TradeSim.BotEngine;
 
 class Program
 {
@@ -36,7 +38,6 @@ class Program
     public async Task RegisterCommandsAsync()
     {
         _client.MessageReceived += HandleCommandAsync;
-        _client.MessageUpdated += _clientOnMessageUpdated;
         _client.ReactionAdded += HandleReactionAdded;
         _client.ReactionRemoved += HandleReactionRemoved;
 
@@ -50,18 +51,36 @@ class Program
         return Task.CompletedTask;
     }
 
-    private Task HandleReactionAdded(Cacheable<IUserMessage, ulong> arg1, Cacheable<IMessageChannel, ulong> arg2, SocketReaction arg3)
+    private async Task HandleReactionAdded(Cacheable<IUserMessage, ulong> userMessage, Cacheable<IMessageChannel, ulong> messageChannel, SocketReaction reaction)
     {
-        Console.WriteLine("reaction added");
+        Console.WriteLine($"reaction added {reaction.UserId} {reaction.User.Value}");
+        var message = await userMessage.DownloadAsync();
+        
+        if (reaction.User.Value.IsBot) return;
 
-        return Task.CompletedTask;
-    }
+        var engine = EngineManager.Get(reaction.Channel.Id);
+        var channel = await messageChannel.GetOrDownloadAsync();
 
-    private Task _clientOnMessageUpdated(Cacheable<IMessage, ulong> arg1, SocketMessage arg2, ISocketMessageChannel arg3)
-    {
-        Console.WriteLine("message updated");
-
-        return Task.CompletedTask;
+        if (Equals(reaction.Emote, Settings.Long))
+        {
+            await engine.Long(reaction.UserId, reaction.User.Value, channel);
+        }
+        else if (Equals(reaction.Emote, Settings.Short))
+        {
+            await engine.Short(reaction.UserId, reaction.User.Value, channel);
+        }
+        else if (Equals(reaction.Emote, Settings.Close))
+        {
+            await engine.Close(reaction.UserId, reaction.User.Value, channel);
+        }
+        else if (Equals(reaction.Emote, Settings.Reverse))
+        {
+            await engine.Reverse(reaction.UserId, reaction.User.Value, channel);
+        }
+        else if (Equals(reaction.Emote, Settings.DoubleDown))
+        {
+            await engine.DoubleDown(reaction.UserId, reaction.User.Value, channel);
+        }
     }
 
     private Task LogAsync(LogMessage log)
@@ -74,8 +93,6 @@ class Program
     private async Task OnReadyAsync()
     {
         Console.WriteLine($"Logged in as {_client.CurrentUser.Username}");
-        
-       
     }
 
     private async Task HandleCommandAsync(SocketMessage arg)
@@ -83,64 +100,53 @@ class Program
         var message = arg as SocketUserMessage;
         var context = new SocketCommandContext(_client, message);
         
-        Console.WriteLine("message: " + message?.Content);
-        
-        if (message.Author.IsBot) return;
+        if (message?.Author.IsBot ?? false) return;
 
         int argPos = 0;
         
         if (message.HasStringPrefix(".", ref argPos))
         {
             var result = await _commands.ExecuteAsync(context, argPos, _services);
+            
             if (!result.IsSuccess)
             {
                 Console.WriteLine(result.ErrorReason);
-                //await context.Channel.SendMessageAsync("error: " + result.ErrorReason);
+            
                 await message.ReplyAsync(result.ErrorReason);
             }
         }
-        else if (message.Content == "cd")
-        {
-            if (context.Channel != null)
-            {
-                // Set the end time for the countdown (e.g., 5 minutes from now)
-                var endTime = DateTime.Now.AddMinutes(5);
-                
-                string GetCountdownString()
-                {
-                    TimeSpan remainingTime = endTime - DateTime.Now;
-                   
-                    if (remainingTime.TotalSeconds <= 0)
-                    {
-                        return "Countdown expired!";
-                    }
-
-                    return $"Time remaining: {remainingTime.ToString(@"mm\:ss")}";
-                }
-            
-                // Send the initial countdown message
-                var countdownMessage = await context.Channel.SendMessageAsync(GetCountdownString());
-
-                // Schedule a task to update the countdown every second
-                
-                var timer = new System.Threading.Timer((object state) =>
-                {
-                    if (countdownMessage != null)
-                    {
-                        countdownMessage.ModifyAsync(props => props.Content = GetCountdownString());
-                    }
-                }, null, 0, 1000);
-            }
-        }
-        else
-        {
-            var message2 = await context.Channel.SendMessageAsync("yolo");
-            // LONG 🟢 / SHORT🔴  / CLOSE ❌/ REVERSE 🔁
-            
-            await message2.AddReactionAsync(new Emoji("🟢"));
-            await message2.AddReactionAsync(new Emoji("🔴"));
-            await message2.AddReactionAsync(new Emoji("❌"));
-            await message2.AddReactionAsync(new Emoji("🔁"));
-        }
+        // else if (message.Content == "cd")
+        // {
+        //     if (context.Channel != null)
+        //     {
+        //         // Set the end time for the countdown (e.g., 5 minutes from now)
+        //         var endTime = DateTime.Now.AddMinutes(5);
+        //         
+        //         string GetCountdownString()
+        //         {
+        //             TimeSpan remainingTime = endTime - DateTime.Now;
+        //            
+        //             if (remainingTime.TotalSeconds <= 0)
+        //             {
+        //                 return "Countdown expired!";
+        //             }
+        //
+        //             return $"Time remaining: {remainingTime.ToString(@"mm\:ss")}";
+        //         }
+        //     
+        //         // Send the initial countdown message
+        //         var countdownMessage = await context.Channel.SendMessageAsync(GetCountdownString());
+        //
+        //         // Schedule a task to update the countdown every second
+        //         
+        //         var timer = new System.Threading.Timer((object state) =>
+        //         {
+        //             if (countdownMessage != null)
+        //             {
+        //                 countdownMessage.ModifyAsync(props => props.Content = GetCountdownString());
+        //             }
+        //         }, null, 0, 1000);
+        //     }
+        // }
     }
 }
