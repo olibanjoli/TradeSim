@@ -35,7 +35,7 @@ Show all open orders
 ```.orders```
 
 ### Close
-For the last candle in the simulation, use close with final price. It will close all open orders.
+Close all orders with given price. Useful for last candle in simulation.
 
 ```.close <Price>```
 
