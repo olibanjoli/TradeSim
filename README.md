@@ -47,6 +47,6 @@ Set current score of a user to a specific value. Any open orders will stay open.
 ```.set-score @user 1337```
 
 ### Remove Order
-Remove an order from a user
+Remove an open order of a user
 
 ```.remove-order @user```
