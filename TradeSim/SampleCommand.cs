@@ -96,4 +96,11 @@ public class HelloModule : ModuleBase<SocketCommandContext>
         var engine = EngineManager.Get(Context.Channel.Id);
         await engine.SetScore(user, points, Context);
     }
+    
+    [Command("reset-2x")]
+    public async Task Reset2x(SocketGuildUser user)
+    {
+        var engine = EngineManager.Get(Context.Channel.Id);
+        await engine.Reset2x(user, Context);
+    }
 }

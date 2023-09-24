@@ -383,6 +383,16 @@ public class Engine
 
         await context.Channel.SendMessageAsync("order removed");
     }
+    
+    public async Task Reset2x(SocketGuildUser user, SocketCommandContext context)
+    {
+        if (Doubled.Contains(user.Id))
+        {
+            Doubled.Remove(user.Id);
+            await context.Channel.SendMessageAsync($"<@{user.Id}> you can 2x again. gl.");
+            return;
+        }
+    }
 
     public async Task SetScore(SocketGuildUser user, double points, SocketCommandContext context)
     {
