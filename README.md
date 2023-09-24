@@ -26,6 +26,9 @@ Show all scores
 
 ```.scores```
 
+![image](https://github.com/olibanjoli/TradeSim/assets/1844103/a660a568-aecd-49a4-b2a5-02730438e337)
+
+
 ### Orders
 Show all open orders
 
