@@ -453,15 +453,25 @@ public class Engine
 
         var points = order.GetValue(CurrentPrice);
 
-        Scores.UpdateScore(reactionUserId, userValue.Username, points);
+        if (points != 0)
+        {
+            Scores.UpdateScore(reactionUserId, userValue.Username, points);
+            
+            await channel.SendMessageAsync(
+                $"<@{reactionUserId}> closed existing {order.Type} position for **{points:+#0.##;-#0.##;0.##}** & opened **2x** {order.Type} position");
+        }
+        else
+        {
+            await channel.SendMessageAsync(
+                $"<@{reactionUserId}> upgraded {order.Type} position **2x**");
+        }
 
         order.Price = CurrentPrice;
         order.Is2x = true;
 
-        await channel.SendMessageAsync(
-            $"<@{reactionUserId}> closed {order.Type} position for **{points:+#0.##;-#0.##;0.##}** & opened **2x** {order.Type} position");
-        
         Doubled.Add(reactionUserId);
+
+        await UpdateTakingOrdersMessage();
     }
 }
 
