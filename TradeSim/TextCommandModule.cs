@@ -1,34 +1,28 @@
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.WebSocket;
 using TradeSim.BotEngine;
 
 namespace TradeSim;
 
-public class HelloModule : ModuleBase<SocketCommandContext>
+public class TextCommandModule : ModuleBase<SocketCommandContext>
 {
-    [Command("hello")]
-    public async Task Hello()
-    {
-        await ReplyAsync($"Hello, {Context.User.Mention}!");
-    }
-
     [Command("start")]
-    public async Task Start([Remainder] double price)
+    public async Task Start(double price)
     {
         Console.WriteLine("starting " + Context.Channel.Id);
-        
+
         var engine = EngineManager.Get(Context.Channel.Id);
 
         if (engine.State != BotState.WaitingToStart)
         {
-            await ReplyAsync("already started!");
+            await ReplyAsync("simulation already running. reset first.");
             return;
         }
-        
-        engine.Start(price, Context);
+
+        await engine.Start(price, Context.Channel);
     }
-    
-    
+
     [Command("tick")]
     public async Task Tick([Remainder] double price)
     {
@@ -36,10 +30,10 @@ public class HelloModule : ModuleBase<SocketCommandContext>
 
         if (engine.State is BotState.RoundEnded or BotState.TakingOrders)
         {
-            await engine.Tick(price, Context);
+            await engine.Tick(price, Context.Channel);
             return;
         }
-        
+
         await ReplyAsync("can not tick atm");
     }
 
@@ -47,16 +41,16 @@ public class HelloModule : ModuleBase<SocketCommandContext>
     public async Task Scores()
     {
         var engine = EngineManager.Get(Context.Channel.Id);
-        
-        engine.PrintScores(Context);
+
+        engine.PrintScores(Context.Channel);
     }
-    
+
     [Command("pause")]
     public async Task Pause()
     {
         var engine = EngineManager.Get(Context.Channel.Id);
 
-        await engine.EndRound(Context);
+        await engine.EndRound(Context.Channel);
     }
 
     [Command("close")]
@@ -64,17 +58,17 @@ public class HelloModule : ModuleBase<SocketCommandContext>
     {
         var engine = EngineManager.Get(Context.Channel.Id);
 
-        await engine.CloseAll(price, Context);
+        await engine.CloseAll(price, Context.Channel);
     }
-    
+
     [Command("reset")]
     public async Task Reset()
     {
         var engine = EngineManager.Get(Context.Channel.Id);
 
-        await engine.Reset(Context);
+        await engine.Reset(Context.Channel);
     }
-    
+
     [Command("orders")]
     public async Task Orders()
     {
@@ -87,20 +81,20 @@ public class HelloModule : ModuleBase<SocketCommandContext>
     public async Task RemoveOrder(SocketGuildUser user)
     {
         var engine = EngineManager.Get(Context.Channel.Id);
-        await engine.RemoveOrder(user, Context);
+        await engine.RemoveOrder(user, Context.Channel);
     }
 
     [Command("set-score")]
-    public async Task SetScore(SocketGuildUser user, [Remainder]double points)
+    public async Task SetScore(SocketGuildUser user, [Remainder] double points)
     {
         var engine = EngineManager.Get(Context.Channel.Id);
-        await engine.SetScore(user, points, Context);
+        await engine.SetScore(user, points, Context.Channel);
     }
-    
+
     [Command("reset-2x")]
     public async Task Reset2x(SocketGuildUser user)
     {
         var engine = EngineManager.Get(Context.Channel.Id);
-        await engine.Reset2x(user, Context);
+        await engine.Reset2x(user, Context.Channel);
     }
 }

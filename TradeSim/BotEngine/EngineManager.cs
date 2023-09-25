@@ -6,9 +6,9 @@ public static class EngineManager
 
     public static Engine Get(ulong channel)
     {
-        if (Engines.ContainsKey(channel))
+        if (Engines.TryGetValue(channel, out var engine1))
         {
-            return Engines[channel];
+            return engine1;
         }
 
         var engine = new Engine();

@@ -1,6 +1,7 @@
 using System.Text;
 using Discord;
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.Rest;
 using Discord.WebSocket;
 
@@ -107,16 +108,15 @@ public class Engine
 
     public List<ulong> Doubled { get; set; } = new();    
 
-    public async Task Start(double price, SocketCommandContext context)
+    public async Task Start(double price, ISocketMessageChannel channel)
     {
-        Console.WriteLine("starting simulation" + price);
         State = BotState.TakingOrders;
         CurrentPrice = price;
 
-        await CreateTakingOrdersMessage(context);
+        await CreateTakingOrdersMessage(channel);
     }
 
-    public async Task Reset(SocketCommandContext context)
+    public async Task Reset(ISocketMessageChannel channel)
     {
         Orders.Clear();
         Scores.Reset();
@@ -124,7 +124,7 @@ public class Engine
 
         State = BotState.WaitingToStart;
 
-        await context.Channel.SendMessageAsync("simulation reset; start using .start <price>");
+        await channel.SendMessageAsync("simulation reset; start using .start <price>");
     }
 
     public async Task ShowOrders(SocketCommandContext context)
@@ -142,7 +142,7 @@ public class Engine
         await context.Channel.SendMessageAsync(sb.ToString());
     }
 
-    public async Task CloseAll(double price, SocketCommandContext context)
+    public async Task CloseAll(double price, ISocketMessageChannel channel)
     {
         CurrentPrice = price;
 
@@ -152,31 +152,31 @@ public class Engine
 
             Scores.UpdateScore(order.User.DiscordId, order.User.Name, points);
 
-            await context.Channel.SendMessageAsync(
+            await channel.SendMessageAsync(
                 $"closing {order.Type} of <@{order.User.DiscordId}> for {points:+#.##;-#.##;0}");
         }
 
         Orders.Clear();
     }
 
-    public async Task EndRound(SocketCommandContext context)
+    public async Task EndRound(ISocketMessageChannel channel)
     {
         State = BotState.RoundEnded;
-        await context.Channel.SendMessageAsync("paused, waiting for next tick");
+        await channel.SendMessageAsync("paused, waiting for next tick");
     }
 
-    public async Task Tick(double price, SocketCommandContext context)
+    public async Task Tick(double price, ISocketMessageChannel channel)
     {
         State = BotState.RoundEnded;
 
         CurrentPrice = price;
 
-        await CreateTakingOrdersMessage(context);
+        await CreateTakingOrdersMessage(channel);
     }
 
-    private async Task CreateTakingOrdersMessage(SocketCommandContext context)
+    private async Task CreateTakingOrdersMessage(ISocketMessageChannel channel)
     {
-        takingOrdersMessage = await context.Channel.SendMessageAsync(":arrow_right:  **Taking orders...**");
+        takingOrdersMessage = await channel.SendMessageAsync(":arrow_right:  **Taking orders...**");
 
         State = BotState.TakingOrders;
 
@@ -285,7 +285,7 @@ public class Engine
         Orders.Remove(order);
     }
 
-    public void PrintScores(SocketCommandContext context)
+    public void PrintScores(ISocketMessageChannel channel)
     {
         var sb = new StringBuilder();
         sb.AppendLine("Scores");
@@ -326,7 +326,7 @@ public class Engine
             CreateOpenOrderList(sb);
         }
 
-        context.Channel.SendMessageAsync(sb.ToString());
+        channel.SendMessageAsync(sb.ToString());
     }
 
     private async Task UpdateTakingOrdersMessage()
@@ -369,36 +369,36 @@ public class Engine
         sb.AppendLine();
     }
 
-    public async Task RemoveOrder(SocketGuildUser user, SocketCommandContext context)
+    public async Task RemoveOrder(SocketGuildUser user, ISocketMessageChannel channel)
     {
         var order = Orders.FirstOrDefault(p => p.User.DiscordId == user.Id);
 
         if (order == null)
         {
-            await context.Channel.SendMessageAsync("no order found for user");
+            await channel.SendMessageAsync("no order found for user");
             return;
         }
 
         Orders.Remove(order);
 
-        await context.Channel.SendMessageAsync("order removed");
+        await channel.SendMessageAsync("order removed");
     }
     
-    public async Task Reset2x(SocketGuildUser user, SocketCommandContext context)
+    public async Task Reset2x(SocketGuildUser user, ISocketMessageChannel channel)
     {
         if (Doubled.Contains(user.Id))
         {
             Doubled.Remove(user.Id);
-            await context.Channel.SendMessageAsync($"<@{user.Id}> you can 2x again. gl.");
+            await channel.SendMessageAsync($"<@{user.Id}> you can 2x again. gl.");
             return;
         }
     }
 
-    public async Task SetScore(SocketGuildUser user, double points, SocketCommandContext context)
+    public async Task SetScore(SocketGuildUser user, double points, ISocketMessageChannel channel)
     {
         Scores.SetScore(user, points);
 
-        await context.Channel.SendMessageAsync("score set");
+        await channel.SendMessageAsync("score set");
     }
 
     public async Task Reverse(ulong reactionUserId, IUser userValue, IMessageChannel channel)
@@ -480,5 +480,4 @@ public enum BotState
     WaitingToStart,
     TakingOrders,
     RoundEnded,
-    Finished,
 }

@@ -1,16 +1,19 @@
 ﻿using System.Reflection;
 using Discord;
 using Discord.Commands;
+using Discord.Interactions;
 using Discord.WebSocket;
-using TradeSim;
 using TradeSim.BotEngine;
 
-class Program
+namespace TradeSim;
+
+public class Program
 {
     private DiscordSocketClient? client;
     private CommandService? commands;
+    private InteractionService? interactionService;
 
-    static void Main(string[] args) => new Program().RunBotAsync().GetAwaiter().GetResult();
+    public static void Main(string[] args) => new Program().RunBotAsync().GetAwaiter().GetResult();
 
     public async Task RunBotAsync()
     {
@@ -23,8 +26,6 @@ class Program
         
         client.Log += LogAsync;
         client.Ready += OnReadyAsync;
-
-        await RegisterCommandsAsync();
 
         await client.LoginAsync(TokenType.Bot, Environment.GetEnvironmentVariable("BOT_TOKEN"));
         await client.StartAsync();
@@ -79,6 +80,20 @@ class Program
     private async Task OnReadyAsync()
     {
         Console.WriteLine($"Logged in as {client?.CurrentUser.Username}");
+
+        interactionService = new InteractionService(client);
+        
+        await interactionService.AddModulesAsync(Assembly.GetEntryAssembly(), null);
+        //await interactionService.RegisterCommandsGloballyAsync();
+        await interactionService.RegisterCommandsToGuildAsync(1081995164173738144);
+
+        client!.InteractionCreated += async interaction =>
+        {
+            var ctx = new SocketInteractionContext(client, interaction);
+            await interactionService.ExecuteCommandAsync(ctx, null);
+        };
+        
+        client.ReactionAdded += HandleReactionAdded;
     }
 
     private async Task HandleCommandAsync(SocketMessage arg)
