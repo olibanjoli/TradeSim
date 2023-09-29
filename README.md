@@ -2,7 +2,8 @@
 
 Bot to assist in trade simulations.
 
-<img width="370" alt="image" src="https://github.com/olibanjoli/TradeSim/assets/1844103/0589beb8-847c-4e44-afb1-ef7c1c1ec5f2">
+<img width="370" alt="image" src="https://github.com/olibanjoli/TradeSim/assets/1844103/14b7ce97-3e3a-4d2f-9e8a-2d16e803366e">
+
 
 
 ## Commands
