@@ -12,8 +12,6 @@ Start at a specific price level
 
 ```/sim start <Price>```
 
-![image](https://github.com/olibanjoli/TradeSim/assets/1844103/73f3ebdc-34c5-4042-88c7-f5745b80f984)
-
 ### Pause
 Before next tick, pause so no more orders are accepted from reactions
 
@@ -24,15 +22,10 @@ Add value of next candle
 
 ```/sim tick <Price>```
 
-![image](https://github.com/olibanjoli/TradeSim/assets/1844103/b9fce50a-445f-454a-b60c-6d3fec914cc8)
-
 ### Scores
 Show all scores
 
 ```/sim scores```
-
-![image](https://github.com/olibanjoli/TradeSim/assets/1844103/a660a568-aecd-49a4-b2a5-02730438e337)
-
 
 ### Orders
 Show all open orders
@@ -43,8 +36,6 @@ Show all open orders
 Close all orders with given price. Useful for last candle in simulation.
 
 ```/sim close <Price>```
-
-![image](https://github.com/olibanjoli/TradeSim/assets/1844103/94741daa-c20c-448c-8edc-64b55c92809c)
 
 ### Set Score
 Set current score of a user to a specific value. Any open orders will stay open.
