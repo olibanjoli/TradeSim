@@ -7,97 +7,10 @@ using Discord.WebSocket;
 
 namespace TradeSim.BotEngine;
 
-public enum OrderType
-{
-    Long,
-    Short,
-}
-
-public class User
-{
-    public string Id { get; set; } = "";
-    public ulong DiscordId { get; set; }
-    public string Name { get; set; } = "";
-}
-
-public class Order
-{
-    public User User { get; set; }
-    public OrderType Type { get; set; }
-    public bool Is2x { get; set; }
-    public double Price { get; set; }
-
-    public double GetValue(double currentPrice)
-    {
-        if (Type == OrderType.Long)
-        {
-            return (currentPrice - Price) * (Is2x ? 2 : 1);
-        }
-
-        if (Type == OrderType.Short)
-        {
-            return (Price - currentPrice) * (Is2x ? 2 : 1);
-        }
-
-        return 0;
-    }
-}
-
-public class Scores
-{
-    public List<ScoreEntry> ScoreEntries { get; set; } = new();
-
-    public void UpdateScore(ulong discordId, string name, double points)
-    {
-        var entry = ScoreEntries.FirstOrDefault(p => p.DiscordId == discordId);
-
-        if (entry == null)
-        {
-            entry = new ScoreEntry
-            {
-                DiscordId = discordId,
-                Name = name,
-            };
-
-            ScoreEntries.Add(entry);
-        }
-
-        entry.Points += points;
-    }
-
-    public void Reset()
-    {
-        ScoreEntries.Clear();
-    }
-
-    public void SetScore(SocketGuildUser user, double points)
-    {
-        var entry = ScoreEntries.FirstOrDefault(p => p.DiscordId == user.Id);
-
-        if (entry == null)
-        {
-            entry = new ScoreEntry
-            {
-                DiscordId = user.Id,
-                Name = user.Username,
-            };
-
-            ScoreEntries.Add(entry);
-        }
-
-        entry.Points = points;
-    }
-}
-
-public class ScoreEntry
-{
-    public ulong DiscordId { get; set; }
-    public string Name { get; set; } = "";
-    public double Points { get; set; }
-}
-
 public class Engine
 {
+    private static readonly object Locker = new();
+
     private RestUserMessage? takingOrdersMessage;
     public BotState State { get; private set; } = BotState.WaitingToStart;
 
@@ -106,7 +19,7 @@ public class Engine
     public List<Order> Orders { get; set; } = new();
     public Scores Scores { get; set; } = new();
 
-    public List<ulong> Doubled { get; set; } = new();    
+    public List<ulong> Doubled { get; set; } = new();
 
     public async Task Start(double price, ISocketMessageChannel channel)
     {
@@ -118,13 +31,14 @@ public class Engine
 
     public async Task Reset(ISocketMessageChannel channel)
     {
-        Orders.Clear();
-        Scores.Reset();
-        Doubled.Clear();
+        lock (Locker)
+        {
+            Orders.Clear();
+            Scores.Reset();
+            Doubled.Clear();
+        }
 
         State = BotState.WaitingToStart;
-
-        await channel.SendMessageAsync("simulation reset; start using .start <price>");
     }
 
     public async Task ShowOrders(SocketCommandContext context)
@@ -146,17 +60,30 @@ public class Engine
     {
         CurrentPrice = price;
 
-        foreach (var order in Orders)
+        try
         {
-            var points = order.GetValue(CurrentPrice);
+            Monitor.Enter(Locker);
 
-            Scores.UpdateScore(order.User.DiscordId, order.User.Name, points);
+            var tasks = new List<Task>();
 
-            await channel.SendMessageAsync(
-                $"closing {order.Type} of <@{order.User.DiscordId}> for {points:+#.##;-#.##;0}");
+            foreach (var order in Orders)
+            {
+                var points = order.GetValue(CurrentPrice);
+
+                Scores.UpdateScore(order.User.DiscordId, order.User.Name, points);
+
+                tasks.Add(channel.SendMessageAsync(
+                    $"closing {order.Type} of <@{order.User.DiscordId}> for {points:+#.##;-#.##;0}"));
+            }
+
+            Orders.Clear();
+
+            await Task.WhenAll(tasks);
         }
-
-        Orders.Clear();
+        finally
+        {
+            Monitor.Exit(Locker);
+        }
     }
 
     public async Task EndRound(ISocketMessageChannel channel)
@@ -197,27 +124,38 @@ public class Engine
             return;
         }
 
-        var existingOrder = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
-
-        if (existingOrder != null)
+        try
         {
-            await messageChannel.SendMessageAsync($"<@{reactionUserId}> has already an open order an can not go long");
-            return;
-        }
+            Monitor.Enter(Locker);
 
-        Orders.Add(new Order
-        {
-            Is2x = false,
-            Price = CurrentPrice,
-            Type = OrderType.Long,
-            User = new User
+            var existingOrder = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
+
+            if (existingOrder != null)
             {
-                DiscordId = reactionUserId,
-                Name = userValue?.ToString() ?? "",
-            }
-        });
+                await messageChannel.SendMessageAsync(
+                    $"<@{reactionUserId}> has already an open order an can not go long");
 
-        await UpdateTakingOrdersMessage();
+                return;
+            }
+
+            Orders.Add(new Order
+            {
+                Is2x = false,
+                Price = CurrentPrice,
+                Type = OrderType.Long,
+                User = new User
+                {
+                    DiscordId = reactionUserId,
+                    Name = userValue?.ToString() ?? "",
+                }
+            });
+
+            await UpdateTakingOrdersMessage();
+        }
+        finally
+        {
+            Monitor.Exit(Locker);
+        }
     }
 
     public async Task Short(ulong reactionUserId, IUser userValue, IMessageChannel messageChannel)
@@ -228,27 +166,37 @@ public class Engine
             return;
         }
 
-        var existingOrder = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
-
-        if (existingOrder != null)
+        try
         {
-            await messageChannel.SendMessageAsync($"<@{reactionUserId}> has already an open order an can not go short");
-            return;
-        }
+            Monitor.Enter(Locker);
 
-        Orders.Add(new Order
-        {
-            Is2x = false,
-            Price = CurrentPrice,
-            Type = OrderType.Short,
-            User = new User
+            var existingOrder = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
+
+            if (existingOrder != null)
             {
-                DiscordId = reactionUserId,
-                Name = userValue?.ToString() ?? "",
+                await messageChannel.SendMessageAsync(
+                    $"<@{reactionUserId}> has already an open order an can not go short");
+                return;
             }
-        });
 
-        await UpdateTakingOrdersMessage();
+            Orders.Add(new Order
+            {
+                Is2x = false,
+                Price = CurrentPrice,
+                Type = OrderType.Short,
+                User = new User
+                {
+                    DiscordId = reactionUserId,
+                    Name = userValue?.ToString() ?? "",
+                }
+            });
+
+            await UpdateTakingOrdersMessage();
+        }
+        finally
+        {
+            Monitor.Exit(Locker);
+        }
     }
 
     public async Task Close(ulong reactionUserId, IUser userValue, IMessageChannel messageChannel)
@@ -258,31 +206,49 @@ public class Engine
             await messageChannel.SendMessageAsync($"<@{reactionUserId}> not taking any orders atm");
             return;
         }
-        
-        var order = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
 
-        if (order == null)
+        try
         {
-            await messageChannel.SendMessageAsync($"{userValue} no order found to close");
-            return;
+            Monitor.Enter(Locker);
+
+            var order = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
+
+            if (order == null)
+            {
+                await messageChannel.SendMessageAsync($"{userValue} no order found to close");
+                return;
+            }
+
+            await CloseOrder(reactionUserId, userValue, messageChannel, order);
+
+            await UpdateTakingOrdersMessage();
         }
-
-        await CloseOrder(reactionUserId, userValue, messageChannel, order);
-
-        await UpdateTakingOrdersMessage();
+        finally
+        {
+            Monitor.Exit(Locker);
+        }
     }
 
     private async Task CloseOrder(ulong reactionUserId, IUser userValue, IMessageChannel messageChannel, Order order,
         bool reverse = false)
     {
-        var points = order.GetValue(CurrentPrice);
+        try
+        {
+            Monitor.Enter(Locker);
 
-        Scores.UpdateScore(reactionUserId, userValue.Username, points);
+            var points = order.GetValue(CurrentPrice);
 
-        await messageChannel.SendMessageAsync(
-            $"<@{reactionUserId}> closed {order.Type} position for **{points:+#;-#;0}**{(reverse ? " (:repeat:)" : "")}");
+            Scores.UpdateScore(reactionUserId, userValue.Username, points);
 
-        Orders.Remove(order);
+            await messageChannel.SendMessageAsync(
+                $"<@{reactionUserId}> closed {order.Type} position for **{points:+#;-#;0}**{(reverse ? " (:repeat:)" : "")}");
+
+            Orders.Remove(order);
+        }
+        finally
+        {
+            Monitor.Exit(Locker);
+        }
     }
 
     public void PrintScores(ISocketMessageChannel channel)
@@ -371,26 +337,34 @@ public class Engine
 
     public async Task RemoveOrder(SocketGuildUser user, ISocketMessageChannel channel)
     {
-        var order = Orders.FirstOrDefault(p => p.User.DiscordId == user.Id);
-
-        if (order == null)
+        try
         {
-            await channel.SendMessageAsync("no order found for user");
-            return;
+            Monitor.Enter(Locker);
+
+            var order = Orders.FirstOrDefault(p => p.User.DiscordId == user.Id);
+
+            if (order == null)
+            {
+                await channel.SendMessageAsync("no order found for user");
+                return;
+            }
+
+            Orders.Remove(order);
+
+            await channel.SendMessageAsync($"<@{user.Id}>'s order removed");
         }
-
-        Orders.Remove(order);
-
-        await channel.SendMessageAsync("order removed");
+        finally
+        {
+            Monitor.Exit(Locker);
+        }
     }
-    
+
     public async Task Reset2x(SocketGuildUser user, ISocketMessageChannel channel)
     {
         if (Doubled.Contains(user.Id))
         {
             Doubled.Remove(user.Id);
             await channel.SendMessageAsync($"<@{user.Id}> you can 2x again. gl.");
-            return;
         }
     }
 
@@ -398,7 +372,7 @@ public class Engine
     {
         Scores.SetScore(user, points);
 
-        await channel.SendMessageAsync("score set");
+        await channel.SendMessageAsync($"<@{user.Id}> score set to **{points}**");
     }
 
     public async Task Reverse(ulong reactionUserId, IUser userValue, IMessageChannel channel)
@@ -408,24 +382,33 @@ public class Engine
             await channel.SendMessageAsync($"<@{reactionUserId}> not taking any orders atm");
             return;
         }
-        
-        var order = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
 
-        if (order == null)
+        try
         {
-            await channel.SendMessageAsync($"no order for <@{reactionUserId}> found to reverse");
-            return;
+            Monitor.Enter(Locker);
+
+            var order = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
+
+            if (order == null)
+            {
+                await channel.SendMessageAsync($"no order for <@{reactionUserId}> found to reverse");
+                return;
+            }
+
+            await CloseOrder(reactionUserId, userValue, channel, order, true);
+
+            if (order.Type == OrderType.Long)
+            {
+                await Short(reactionUserId, userValue, channel);
+            }
+            else if (order.Type == OrderType.Short)
+            {
+                await Long(reactionUserId, userValue, channel);
+            }
         }
-
-        await CloseOrder(reactionUserId, userValue, channel, order, true);
-
-        if (order.Type == OrderType.Long)
+        finally
         {
-            await Short(reactionUserId, userValue, channel);
-        }
-        else if (order.Type == OrderType.Short)
-        {
-            await Long(reactionUserId, userValue, channel);
+            Monitor.Exit(Locker);
         }
     }
 
@@ -437,41 +420,50 @@ public class Engine
             return;
         }
 
-        if (Doubled.Contains(reactionUserId))
+        try
         {
-            await channel.SendMessageAsync($"<@{reactionUserId}> can't 2x again :exclamation:");
-            return;
+            Monitor.Enter(Locker);
+
+            if (Doubled.Contains(reactionUserId))
+            {
+                await channel.SendMessageAsync($"<@{reactionUserId}> can't 2x again :exclamation:");
+                return;
+            }
+
+            var order = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
+
+            if (order == null)
+            {
+                await channel.SendMessageAsync($"<@{reactionUserId}> no order found to 2x");
+                return;
+            }
+
+            var points = order.GetValue(CurrentPrice);
+
+            if (points != 0)
+            {
+                Scores.UpdateScore(reactionUserId, userValue.Username, points);
+
+                await channel.SendMessageAsync(
+                    $"<@{reactionUserId}> closed existing {order.Type} position for **{points:+#0.##;-#0.##;0.##}** & opened **2x** {order.Type} position");
+            }
+            else
+            {
+                await channel.SendMessageAsync(
+                    $"<@{reactionUserId}> upgraded {order.Type} position **2x**");
+            }
+
+            order.Price = CurrentPrice;
+            order.Is2x = true;
+
+            Doubled.Add(reactionUserId);
+
+            await UpdateTakingOrdersMessage();
         }
-
-        var order = Orders.FirstOrDefault(p => p.User.DiscordId == reactionUserId);
-
-        if (order == null)
+        finally
         {
-            await channel.SendMessageAsync($"<@{reactionUserId}> no order found to 2x");
-            return;
+            Monitor.Exit(Locker);
         }
-
-        var points = order.GetValue(CurrentPrice);
-
-        if (points != 0)
-        {
-            Scores.UpdateScore(reactionUserId, userValue.Username, points);
-            
-            await channel.SendMessageAsync(
-                $"<@{reactionUserId}> closed existing {order.Type} position for **{points:+#0.##;-#0.##;0.##}** & opened **2x** {order.Type} position");
-        }
-        else
-        {
-            await channel.SendMessageAsync(
-                $"<@{reactionUserId}> upgraded {order.Type} position **2x**");
-        }
-
-        order.Price = CurrentPrice;
-        order.Is2x = true;
-
-        Doubled.Add(reactionUserId);
-
-        await UpdateTakingOrdersMessage();
     }
 }
 

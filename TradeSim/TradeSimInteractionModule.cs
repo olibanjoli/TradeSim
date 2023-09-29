@@ -1,12 +1,11 @@
 using System.Globalization;
-using Discord;
 using Discord.Interactions;
 using Discord.WebSocket;
 using TradeSim.BotEngine;
 
 namespace TradeSim;
 
-[Group("trade-sim", "Trade Simulator Bot")]
+[Group("sim", "Trade Simulator Bot")]
 public class TradeSimInteractionModule : InteractionModuleBase<SocketInteractionContext>
 {
     [SlashCommand("start", "Start trade simulation")]
@@ -47,7 +46,7 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
 
         engine.PrintScores(Context.Channel);
         
-        await RespondAsync(string.Empty, ephemeral: true);
+        await RespondAsync("ok", ephemeral: true);
     }
     
     [SlashCommand("pause", "Stops accepting orders from users. Useful before next tick.")]
@@ -56,6 +55,8 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
         var engine = EngineManager.Get(Context.Channel.Id);
 
         await engine.EndRound(Context.Channel);
+        
+        await RespondAsync("ok", ephemeral: true);
     }
     
     [SlashCommand("close-all", "Closes all open orders with closing price")]
@@ -64,6 +65,8 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
         var engine = EngineManager.Get(Context.Channel.Id);
 
         await engine.CloseAll(price, Context.Channel);
+
+        await RespondAsync("ok", ephemeral: true);
     }
     
     [SlashCommand("reset", "Clears all orders & scores.")]
@@ -72,6 +75,8 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
         var engine = EngineManager.Get(Context.Channel.Id);
 
         await engine.Reset(Context.Channel);
+        
+        await RespondAsync("simulation reset; start new session using .start <price>", ephemeral: true);
     }
     
     [SlashCommand("status", "Shows the current status of the bot.")]
@@ -90,40 +95,54 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
         await RespondAsync(engine.CurrentPrice.ToString(CultureInfo.InvariantCulture), ephemeral: true);
     }
     
-    // public async Task RemoveOrder(SocketGuildUser user)
-    // {
-    //     var engine = EngineManager.Get(Context.Channel.Id);
-    //     await engine.RemoveOrder(user, Context.Channel);
-    // }
-
-    [SlashCommand("test", "foo")]
-    public async Task Test([Autocomplete(typeof(OpenOrdersAutoCompleteHandler))] string user)
+    [SlashCommand("remove-order", "Remove an open order of a user")]
+    public async Task RemoveOrder(SocketGuildUser user)
     {
-        await RespondAsync("hello " + user);
-    }
-
-    [SlashCommand("echo", "Echo an input")]
-    public async Task EchoSubcommand(SocketGuildUser user)
-    {
-        await RespondAsync("hello " + user.Username);
-    }
-}
-
-public class OpenOrdersAutoCompleteHandler : AutocompleteHandler
-{
-    public override async Task<AutocompletionResult> GenerateSuggestionsAsync(IInteractionContext context, IAutocompleteInteraction autocompleteInteraction, IParameterInfo parameter, IServiceProvider services)
-    {
-        var engine = EngineManager.Get(context.Channel.Id);
-
-        var list = new List<AutocompleteResult>();
-
-
-        foreach (var order in engine.Orders)
-        {
-            list.Add(new AutocompleteResult($"{order.User.Name} Long ({order.GetValue(engine.CurrentPrice)}){(order.Is2x ? " [2x]" : "")}", $"<@{order.User.DiscordId}>"));
-        }
+        var engine = EngineManager.Get(Context.Channel.Id);
+        await engine.RemoveOrder(user, Context.Channel);
         
-        // max - 25 suggestions at a time (API limit)
-        return AutocompletionResult.FromSuccess(list);
+        await RespondAsync("ok", ephemeral: true);
     }
+    
+    [SlashCommand("set-score", "Set the score of a user")]
+    public async Task SetScore(SocketGuildUser user, double points)
+    {
+        var engine = EngineManager.Get(Context.Channel.Id);
+        await engine.SetScore(user, points, Context.Channel);
+        
+        await RespondAsync("ok", ephemeral: true);
+    }
+    
+    [SlashCommand("reset-2x", "Allow a user to do a 2x again")]
+    public async Task Reset2X(SocketGuildUser user)
+    {
+        var engine = EngineManager.Get(Context.Channel.Id);
+        await engine.Reset2x(user, Context.Channel);
+
+        await RespondAsync("ok", ephemeral: true);
+    }
+    
+    // [SlashCommand("test", "foo")]
+    // public async Task Test([Autocomplete(typeof(OpenOrdersAutoCompleteHandler))] string user)
+    // {
+    //     await RespondAsync("hello " + user);
+    // }
 }
+
+// public class OpenOrdersAutoCompleteHandler : AutocompleteHandler
+// {
+//     public override async Task<AutocompletionResult> GenerateSuggestionsAsync(IInteractionContext context, IAutocompleteInteraction autocompleteInteraction, IParameterInfo parameter, IServiceProvider services)
+//     {
+//         var engine = EngineManager.Get(context.Channel.Id);
+//
+//         var list = new List<AutocompleteResult>();
+//
+//         foreach (var order in engine.Orders)
+//         {
+//             list.Add(new AutocompleteResult($"{order.User.Name} Long ({order.GetValue(engine.CurrentPrice)}){(order.Is2x ? " [2x]" : "")}", $"<@{order.User.DiscordId}>"));
+//         }
+//         
+//         // max - 25 suggestions at a time (API limit)
+//         return AutocompletionResult.FromSuccess(list);
+//     }
+// }
