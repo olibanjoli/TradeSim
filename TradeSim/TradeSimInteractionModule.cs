@@ -31,7 +31,7 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
 
         if (engine.State is BotState.RoundEnded or BotState.TakingOrders)
         {
-            await RespondAsync("next tick " + price, ephemeral: true);
+            await RespondAsync($"next tick **{price}**", ephemeral: true);
             await engine.Tick(price, Context.Channel);
             return;
         }
