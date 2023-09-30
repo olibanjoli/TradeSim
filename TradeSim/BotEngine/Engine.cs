@@ -15,6 +15,7 @@ public class Engine
     public BotState State { get; private set; } = BotState.WaitingToStart;
 
     public double CurrentPrice { get; set; }
+    public double TickValue { get; set; } = 50;
 
     public List<Order> Orders { get; set; } = new();
     public Scores Scores { get; set; } = new();
@@ -281,7 +282,7 @@ public class Engine
                 prefix = ":red_square: ";
             }
 
-            sb.AppendLine($"{prefix}**{entry.Points}** <@{entry.DiscordId}>");
+            sb.AppendLine($"{prefix}**{entry.Points}** {(entry.Points * TickValue).ToString("C", System.Globalization.CultureInfo.GetCultureInfo("en-US"))} <@{entry.DiscordId}> {entry.TradeCounter} trades [W: {entry.Wins} L: {entry.Losses} {entry.WinRate}]");
             ++i;
         }
 
@@ -366,6 +367,12 @@ public class Engine
             Doubled.Remove(user.Id);
             await channel.SendMessageAsync($"<@{user.Id}> you can 2x again. gl.");
         }
+    }
+
+    public async Task Reset2XAll(ISocketMessageChannel channel)
+    {
+        Doubled.Clear();
+        await channel.SendMessageAsync("all 2x cleared. gl.");
     }
 
     public async Task SetScore(SocketGuildUser user, double points, ISocketMessageChannel channel)

@@ -5,7 +5,7 @@ namespace TradeSim.BotEngine;
 public class Scores
 {
     private static readonly object Locker = new object();
-    
+
     public List<ScoreEntry> ScoreEntries { get; set; } = new();
 
     public void UpdateScore(ulong discordId, string name, double points)
@@ -26,6 +26,19 @@ public class Scores
             }
 
             entry.Points += points;
+
+            if (points == 0) return;
+            
+            entry.TradeCounter += 1;
+                
+            if (points > 0)
+            {
+                entry.Wins += 1;
+            }
+            else
+            {
+                entry.Losses += 1;
+            }
         }
     }
 
@@ -37,7 +50,7 @@ public class Scores
         }
     }
 
-    public void SetScore(SocketGuildUser user, double points)
+    public void SetScore(SocketGuildUser user, double points, bool countTrade = true)
     {
         lock (Locker)
         {
@@ -55,6 +68,11 @@ public class Scores
             }
 
             entry.Points = points;
+
+            if (countTrade)
+            {
+                entry.TradeCounter += 1;
+            }
         }
     }
 }

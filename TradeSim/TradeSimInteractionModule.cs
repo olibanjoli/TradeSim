@@ -76,7 +76,7 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
 
         await engine.Reset(Context.Channel);
         
-        await RespondAsync("simulation reset; start new session using .start <price>", ephemeral: true);
+        await RespondAsync("simulation reset; start new session using start command", ephemeral: true);
     }
     
     [SlashCommand("status", "Shows the current status of the bot.")]
@@ -92,7 +92,7 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
     {
         var engine = EngineManager.Get(Context.Channel.Id);
 
-        await RespondAsync(engine.CurrentPrice.ToString(CultureInfo.InvariantCulture), ephemeral: true);
+        await RespondAsync($"last tick value: **{engine.CurrentPrice.ToString(CultureInfo.InvariantCulture)}**", ephemeral: true);
     }
     
     [SlashCommand("remove-order", "Remove an open order of a user")]
@@ -118,6 +118,25 @@ public class TradeSimInteractionModule : InteractionModuleBase<SocketInteraction
     {
         var engine = EngineManager.Get(Context.Channel.Id);
         await engine.Reset2x(user, Context.Channel);
+
+        await RespondAsync("ok", ephemeral: true);
+    }
+    
+    [SlashCommand("reset-2x-all", "Allow all users to do a 2x again")]
+    public async Task Reset2XAll(SocketGuildUser user)
+    {
+        var engine = EngineManager.Get(Context.Channel.Id);
+        await engine.Reset2XAll(Context.Channel);
+
+        await RespondAsync("ok", ephemeral: true);
+    }
+    
+    [SlashCommand("tick-value", "Set tick value for score calculation (default 50$)")]
+    public async Task SetTickValue(double tickValue)
+    {
+        var engine = EngineManager.Get(Context.Channel.Id);
+
+        engine.TickValue = tickValue;
 
         await RespondAsync("ok", ephemeral: true);
     }
